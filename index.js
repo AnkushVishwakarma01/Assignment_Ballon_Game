@@ -11,17 +11,17 @@ window.addEventListener('load', function () {
     console.log('loaded', ctx);
 
     class EventHandler {
-        constructor(game){
-            this.keys = [{x: 0, y: 0}];
+        constructor(){
+            this.keys = {x: -268, y: 60};
 
-            document.addEventListener('click', (e) => {
-                this.keys.push({x: e.offsetX, y: e.offsetY});   
+            document.addEventListener('mousedown', (e) => {
+                this.keys.x = e.offsetX;
+                this.keys.y = e.offsetY;
             })
-        }
-        check(){
-            if(this.keys.length > 1){
-                this.keys.shift();
-            }
+            document.addEventListener('mouseup', (e) => {
+                this.keys.x = -468;
+                this.keys.y = null;
+            })
         }
     }
 
@@ -68,6 +68,75 @@ window.addEventListener('load', function () {
     class Ballon {
         constructor(game) {
             this.game = game;
+            this.width = 8;
+            this.height = 8;
+            this.charWidth = 12;
+            this.charHeight = 12;
+            this.x = 468;
+            this.y = 164;
+            this.cx = this.x - this.width / 2;
+            this.cy = this.y - this.height;
+            this.velocityX = 1;
+            this.velocityY = 1;
+            this.pressure = 1;
+            this.picker = Math.floor(Math.random() * 10);
+            this.picker2 = Math.floor(Math.random() * 25);
+            this.img = this.game.image[this.picker];
+            this.char = this.game.char[this.picker2];
+            this.burst = false;
+            this.event = new EventHandler();
+        }
+        draw(ctx) {
+            ctx.drawImage(this.img, this.cx, this.cy, this.width, this.height);
+            ctx.drawImage(this.char, (this.x - this.width*0.3), this.y - this.height*0.8, this.charWidth, this.charHeight);
+        }
+        update() {
+            this.cx = this.x - this.width / 2;
+            this.cy = this.y - this.height;
+
+            if (this.width < 85) {
+                this.width++;
+                this.height++;
+            }
+
+            if(this.width > 44){
+                if(this.charWidth < 51){
+                    this.charWidth++;
+                    this.charHeight++;
+                }
+            }
+
+            this.isBurst();
+
+            if(this.goFloat()){
+                this.x -= this.velocityX;
+                this.y -= this.velocityY*this.pressure;
+                if (this.y - this.height <= 0) {
+                    this.pressure = -4;
+                }
+                if(this.pressure < 1){
+                    this.pressure += 0.1;
+                }
+            }
+
+        }
+        goFloat() {
+            if (this.width == 85) return true;
+            else return false;
+        }
+        isBurst(){
+            if((this.cx < this.event.keys.x && this.cx + this.width > this.event.keys.x) && 
+            (this.cy < this.event.keys.y && this.cy + this.height > this.event.keys.y)){
+                this.burst = true;
+            }
+        }
+    }
+
+    class Game {
+        constructor(canvas) {
+            this.cvs = canvas;
+            this.width = this.cvs.width;
+            this.height = this.cvs.height;
             this.image = [
                 document.getElementById('ballon1'),
                 document.getElementById('ballon2'),
@@ -109,68 +178,10 @@ window.addEventListener('load', function () {
                 document.getElementById('char24'),
                 document.getElementById('char25'),
             ];
-            this.width = 8;
-            this.height = 8;
-            this.charWidth = 12;
-            this.charHeight = 12;
-            this.x = 468;
-            this.y = 164;
-            this.velocityX = 1;
-            this.velocityY = 1
-            this.pressure = 0;
-            this.click = false;
-            this.picker = Math.floor(Math.random() * 10);
-            this.picker2 = Math.floor(Math.random() * 25);
-            this.myIndex = this.game.ballonIndex;
-        }
-        draw(ctx) {
-            ctx.drawImage(this.image[this.picker], this.x - this.width / 2, this.y - this.height, this.width, this.height);
-            ctx.drawImage(this.char[this.picker2], (this.x - this.width*0.3), this.y - this.height*0.8, this.charWidth, this.charHeight);
-        }
-        update() {
-            if (this.width < 85) {
-                this.width++;
-                this.height++;
-            }
-
-            if(this.width > 44){
-                if(this.charWidth < 51){
-                    this.charWidth++;
-                    this.charHeight++;
-                }
-            }
-
-            if(this.goFloat()){
-                this.x -= this.velocityX;
-                this.y -= this.velocityY;
-                if (this.y - this.height <= 0) {
-                    this.velocityY = 0;
-                } else if (this.y >= this.game.height) {
-                    this.velocityY = -this.velocityY;
-                }
-            }
-        }
-        goFloat() {
-            if (this.width == 85) return true;
-            else return false;
-        }
-    }
-
-    class Game {
-        constructor(canvas) {
-            this.cvs = canvas;
-            this.width = this.cvs.width;
-            this.height = this.cvs.height;
-            this.eventHandler = new EventHandler(this);
             this.machine = new Machine(this);
-            this.ballonIndex = 0;
             this.ballons = [new Ballon(this)];
         }
         render(ctx) {
-            this.lastIndex = this.ballons.length - 1;
-
-            this.eventHandler.check();
-
             this.machine.draw(ctx);
             this.machine.update();
 
@@ -180,33 +191,19 @@ window.addEventListener('load', function () {
             })
         }
         update(){
-            if (this.ballons[this.lastIndex].goFloat()) {
-                this.ballonIndex++;
+            for(let i = 0; i < this.ballons.length; i++){
+                if(this.ballons[i].burst == true){
+                    this.ballons.splice(i, 1);
+                }
+            }
+
+            if (this.ballons[this.ballons.length-1].goFloat()) {
                 this.ballons.push(new Ballon(this));
-            }
-
-            if(this.ballons[0].x + this.ballons[0].width <= 0){
-                this.ballons.shift();
-            }
-
-            this.destroy();
-
-        }
-        destroy(){
-            var condition = this.eventHandler.keys[0].x > (this.ballons[0].x - this.ballons[0].width);
-            var condition2 = this.eventHandler.keys[0].x < (this.ballons[0].x + this.ballons[0].width);
-    
-            console.log(condition, condition2);
-
-            if(condition && condition2){
-                this.ballons.shift();
-                this.eventHandler.keys.push({x: 0, y: 0})
             }
         }
     }
 
     var game = new Game(cvs);
-
     function animate() {
         ctx.clearRect(0, 0, cvs.width, cvs.height);
 
